@@ -1,15 +1,16 @@
 #pragma once
 
+#include "duckdb/common/helper.hpp"
+#include "duckdb/planner/bound_result_modifier.hpp"
+#include "duckdb/planner/expression.hpp"
+#include "duckdb/planner/joinside.hpp"
+#include "duckdb/planner/logical_operator.hpp"
+#include "duckdb/planner/table_filter.hpp"
 #include "substrait/algebra.pb.h"
+#include "substrait/plan.pb.h"
+
 #include <string>
 #include <unordered_map>
-#include "substrait/plan.pb.h"
-#include "duckdb/planner/expression.hpp"
-#include "duckdb/common/helper.hpp"
-#include "duckdb/planner/logical_operator.hpp"
-#include "duckdb/planner/joinside.hpp"
-#include "duckdb/planner/table_filter.hpp"
-#include "duckdb/planner/bound_result_modifier.hpp"
 
 namespace duckdb {
 class DuckDBToSubstrait {
@@ -70,7 +71,7 @@ private:
 	void TransformInExpression(duckdb::Expression &dexpr, substrait::Expression &sexpr);
 
 	//! Transforms a DuckDB Logical Type into a Substrait Type
-	::substrait::Type DuckToSubstraitType(LogicalType &d_type);
+	::substrait::Type DuckToSubstraitType(LogicalType const &d_type);
 	//! Methods to transform DuckDB Filters to Substrait Expression
 	substrait::Expression *TransformFilter(uint64_t col_idx, duckdb::TableFilter &dfilter);
 	substrait::Expression *TransformIsNotNullFilter(uint64_t col_idx, duckdb::TableFilter &dfilter);

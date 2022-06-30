@@ -1,18 +1,17 @@
 #include "to_substrait.hpp"
 
 #include "duckdb/common/constants.hpp"
+#include "duckdb/common/enums/expression_type.hpp"
 #include "duckdb/common/types/value.hpp"
+#include "duckdb/function/table/table_scan.hpp"
 #include "duckdb/planner/expression/list.hpp"
-#include "duckdb/planner/table_filter.hpp"
 #include "duckdb/planner/filter/conjunction_filter.hpp"
 #include "duckdb/planner/filter/constant_filter.hpp"
 #include "duckdb/planner/joinside.hpp"
 #include "duckdb/planner/operator/list.hpp"
-#include "duckdb/function/table/table_scan.hpp"
-#include "duckdb/common/enums/expression_type.hpp"
-
-#include "substrait/plan.pb.h"
+#include "duckdb/planner/table_filter.hpp"
 #include "substrait/algebra.pb.h"
+#include "substrait/plan.pb.h"
 
 namespace duckdb {
 
@@ -70,9 +69,8 @@ void DuckDBToSubstrait::TransformBigInt(Value &dval, substrait::Expression &sexp
 }
 
 void DuckDBToSubstrait::TransformDate(Value &dval, substrait::Expression &sexpr) {
-	// TODO how are we going to represent dates?
 	auto &sval = *sexpr.mutable_literal();
-	sval.set_string(dval.ToString());
+	sval.set_date(static_cast<int32_t>(dval.GetValue<date_t>()));
 }
 
 void DuckDBToSubstrait::TransformVarchar(Value &dval, substrait::Expression &sexpr) {
@@ -80,7 +78,7 @@ void DuckDBToSubstrait::TransformVarchar(Value &dval, substrait::Expression &sex
 	string duck_str = dval.GetValue<string>();
 	sval.set_string(dval.GetValue<string>());
 }
-::substrait::Type DuckDBToSubstrait::DuckToSubstraitType(LogicalType &d_type) {
+::substrait::Type DuckDBToSubstrait::DuckToSubstraitType(LogicalType const &d_type) {
 	::substrait::Type s_type;
 	switch (d_type.id()) {
 	case LogicalTypeId::HUGEINT: {
@@ -170,6 +168,14 @@ void DuckDBToSubstrait::TransformHugeInt(Value &dval, substrait::Expression &sex
 }
 
 void DuckDBToSubstrait::TransformConstant(Value &dval, substrait::Expression &sexpr) {
+	if (dval.IsNull()) {
+		auto &sval = *sexpr.mutable_literal();
+
+		auto *allocated_type = new ::substrait::Type(DuckToSubstraitType(dval.type()));
+		sval.set_allocated_null(allocated_type);
+		return;
+	}
+
 	auto &duckdb_type = dval.type();
 	switch (duckdb_type.id()) {
 	case LogicalTypeId::DECIMAL:
@@ -628,7 +634,7 @@ substrait::Rel *DuckDBToSubstrait::TransformComparisonJoin(LogicalOperator &dop)
 			djoin.left_projection_map.push_back(i);
 		}
 	}
-	if (djoin.right_projection_map.empty()) {
+	if (djoin.right_projection_map.empty() && djoin.join_type != JoinType::SEMI) {
 		for (uint64_t i = 0; i < dop.children[1]->types.size(); i++) {
 			djoin.right_projection_map.push_back(i);
 		}
